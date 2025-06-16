@@ -12,7 +12,7 @@ const UrlInput = ({ onScrape, loading }) => {
     setError("")
 
     if (!url.trim()) {
-      setError("Please enter a URL")
+      setError("Please enter an URL")
       return
     }
 

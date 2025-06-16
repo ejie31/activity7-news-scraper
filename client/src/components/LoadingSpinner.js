@@ -3,7 +3,7 @@ const LoadingSpinner = () => {
     <div className="loading-spinner-container">
       <div className="loading-spinner">
         <div className="spinner"></div>
-        <p>Paghulat Sig Dali murag naay Daghng Load...</p>
+        <p>Wait, Loading...</p>
         <div className="loading-progress">
           <div className="progress-bar">
             <div className="progress-fill"></div>

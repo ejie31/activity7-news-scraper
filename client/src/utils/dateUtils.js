@@ -1,104 +1,95 @@
-export function formatDate(dateString) {
-  if (!dateString) return "Date not available"
+// Default locale (can be made dynamic)
+const DEFAULT_LOCALE = "en-US"
 
-  try {
-    // Handle various date formats
-    let date
+// Tries to parse a date string with known formats
+function tryCustomParse(dateString) {
+  const patterns = [
+    { regex: /^(\d{4})-(\d{2})-(\d{2})$/, format: "YYYY-MM-DD" },
+    { regex: /^(\d{2})\/(\d{2})\/(\d{4})$/, format: "MM/DD/YYYY" },
+    { regex: /^(\d{2})-(\d{2})-(\d{4})$/, format: "MM-DD-YYYY" },
+    { regex: /^(\d{2})\/(\d{2})\/(\d{4})$/, format: "DD/MM/YYYY" },
+    { regex: /^(\d{2})-(\d{2})-(\d{4})$/, format: "DD-MM-YYYY" },
+  ]
 
-    // Try parsing as ISO string first
-    if (dateString.includes("T") || dateString.includes("Z")) {
-      date = new Date(dateString)
-    } else {
-      // Try parsing other common formats
-      date = new Date(dateString)
+  for (const { regex, format } of patterns) {
+    const match = dateString.match(regex)
+    if (match) {
+      let [, part1, part2, part3] = match
+      if (format === "YYYY-MM-DD") return new Date(`${part1}-${part2}-${part3}T00:00:00Z`)
+      if (["MM/DD/YYYY", "MM-DD-YYYY"]) return new Date(`${part3}-${part1}-${part2}T00:00:00Z`)
+      if (["DD/MM/YYYY", "DD-MM-YYYY"]) return new Date(`${part3}-${part2}-${part1}T00:00:00Z`)
     }
-
-    if (isNaN(date.getTime())) {
-      // Try some common date patterns
-      const patterns = [
-        /(\d{4})-(\d{2})-(\d{2})/, // YYYY-MM-DD
-        /(\d{2})\/(\d{2})\/(\d{4})/, // MM/DD/YYYY
-        /(\d{2})-(\d{2})-(\d{4})/, // MM-DD-YYYY
-      ]
-
-      for (const pattern of patterns) {
-        const match = dateString.match(pattern)
-        if (match) {
-          date = new Date(match[0])
-          if (!isNaN(date.getTime())) break
-        }
-      }
-    }
-
-    if (isNaN(date.getTime())) {
-      return "Invalid date"
-    }
-
-    // Format the date nicely
-    const now = new Date()
-    const diffTime = Math.abs(now - date)
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-    // Show relative time for recent articles
-    if (diffDays <= 1) {
-      return "Today"
-    } else if (diffDays <= 2) {
-      return "Yesterday"
-    } else if (diffDays <= 7) {
-      return `${diffDays} days ago`
-    } else {
-      // Show full date for older articles
-      return date.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    }
-  } catch (error) {
-    console.warn("Date parsing error:", error)
-    return "Date unavailable"
   }
+
+  return null
 }
 
+// Parses any supported date string into a valid Date object
 export function parseDate(dateString) {
-  try {
-    const date = new Date(dateString)
-    return isNaN(date.getTime()) ? null : date
-  } catch {
-    return null
+  if (!dateString) return null
+
+  let date = new Date(dateString)
+  if (isNaN(date.getTime())) {
+    date = tryCustomParse(dateString)
   }
+
+  return !isNaN(date?.getTime()) ? date : null
 }
 
+// Formats a date to a user-friendly string
+export function formatDate(dateString, locale = DEFAULT_LOCALE) {
+  const date = parseDate(dateString)
+  if (!date) return "Date not available"
+
+  const now = new Date()
+  const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) return "Today"
+  if (diffDays === 1) return "Yesterday"
+  if (diffDays <= 7) return `${diffDays} days ago`
+
+  return date.toLocaleDateString(locale, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+// Checks if a date is within the last N days
 export function isRecentDate(dateString, daysThreshold = 7) {
   const date = parseDate(dateString)
   if (!date) return false
 
   const now = new Date()
-  const diffTime = Math.abs(now.getTime() - date.getTime())
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
+  const diffDays = (now - date) / (1000 * 60 * 60 * 24)
   return diffDays <= daysThreshold
 }
 
-export function getRelativeTime(dateString) {
+// Returns a human-readable "time ago" string
+export function getRelativeTime(dateString, locale = DEFAULT_LOCALE) {
   const date = parseDate(dateString)
   if (!date) return "Unknown time"
 
   const now = new Date()
-  const diffTime = now.getTime() - date.getTime()
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-  const diffHours = Math.floor(diffTime / (1000 * 60 * 60))
-  const diffMinutes = Math.floor(diffTime / (1000 * 60))
+  const diff = now - date
 
-  if (diffDays > 0) {
-    return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`
-  } else if (diffHours > 0) {
-    return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`
-  } else if (diffMinutes > 0) {
-    return `${diffMinutes} minute${diffMinutes > 1 ? "s" : ""} ago`
-  } else {
-    return "Just now"
-  }
+  const seconds = Math.floor(diff / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" })
+
+  if (seconds < 60) return rtf.format(-seconds, "seconds")
+  if (minutes < 60) return rtf.format(-minutes, "minutes")
+  if (hours < 24) return rtf.format(-hours, "hours")
+  if (days < 7) return rtf.format(-days, "days")
+
+  return date.toLocaleDateString(locale, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
 }
